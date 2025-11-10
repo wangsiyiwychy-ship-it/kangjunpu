@@ -1,9 +1,17 @@
 from flask import Flask, render_template, request, jsonify
 import json
 import os
+from flask_cors import CORS
+import logging
 
 # 创建Flask应用实例
 app = Flask(__name__)
+# 配置CORS，允许跨域请求
+CORS(app)
+
+# 配置日志
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+logger = logging.getLogger(__name__)
 
 # 全局变量存储数据
 antibiotic_data = None
@@ -12,12 +20,18 @@ antibiotic_data = None
 def load_data():
     global antibiotic_data
     json_path = 'antibiotic_data.json'
+    logger.info(f"尝试加载数据文件: {os.path.abspath(json_path)}")
     if os.path.exists(json_path):
-        with open(json_path, 'r', encoding='utf-8') as f:
-            antibiotic_data = json.load(f)
-        print("数据加载成功")
+        try:
+            with open(json_path, 'r', encoding='utf-8') as f:
+                antibiotic_data = json.load(f)
+            logger.info(f"数据加载成功，包含 {len(antibiotic_data.get('data', []))} 条记录")
+        except Exception as e:
+            logger.error(f"加载数据文件时出错: {str(e)}")
+            antibiotic_data = None
     else:
-        print("警告：JSON数据文件不存在")
+        logger.error(f"警告：JSON数据文件不存在: {json_path}")
+        antibiotic_data = None
 
 # 主页路由
 @app.route('/')
@@ -27,25 +41,33 @@ def index():
 # 获取所有细菌名称的API
 @app.route('/api/bacteria', methods=['GET'])
 def get_bacteria():
+    logger.info("接收到获取细菌列表的请求")
     if antibiotic_data:
+        bacteria_list = antibiotic_data.get('bacteria_list', [])
+        logger.info(f"返回 {len(bacteria_list)} 个细菌名称")
         return jsonify({
             'success': True,
-            'bacteria': antibiotic_data.get('bacteria_list', [])
+            'bacteria': bacteria_list
         })
     else:
-        return jsonify({'success': False, 'error': '数据未加载'})
+        logger.error("无法获取细菌列表：数据未加载")
+        return jsonify({'success': False, 'error': '数据未加载'}), 500
 
 # 获取所有药物名称的API
 @app.route('/api/drugs', methods=['GET'])
 def get_drugs():
+    logger.info("接收到获取药物列表的请求")
     if antibiotic_data:
         # 返回所有药物名称，保持Excel中的原始顺序（从左到右）
+        drug_list = antibiotic_data.get('drug_list', [])
+        logger.info(f"返回 {len(drug_list)} 个药物名称")
         return jsonify({
             'success': True,
-            'drugs': antibiotic_data.get('drug_list', [])
+            'drugs': drug_list
         })
     else:
-        return jsonify({'success': False, 'error': '数据未加载'})
+        logger.error("无法获取药物列表：数据未加载")
+        return jsonify({'success': False, 'error': '数据未加载'}), 500
 
 # 按细菌搜索API
 @app.route('/api/search/bacteria', methods=['GET'])
